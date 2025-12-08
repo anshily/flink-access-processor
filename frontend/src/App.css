@@ -1,0 +1,31 @@
+.app-layout {
+  min-height: 100vh;
+}
+
+.app-header {
+  background-color: #1890ff;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-content {
+  padding: 24px;
+  background-color: #f0f2f5;
+}
+
+.records-card {
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 暗黑主题样式调整 */
+[data-theme="dark"] .app-content {
+  background-color: #141414;
+}
+
+[data-theme="dark"] .records-card {
+  background-color: #1f1f1f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}

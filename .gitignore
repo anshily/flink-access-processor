@@ -2,3 +2,6 @@
 flink-connector-jdbc-*.jar
 target/
 *.log
+flink-access-job-*.jar
+nifi-template.xml
+prometheus/prometheus.yml

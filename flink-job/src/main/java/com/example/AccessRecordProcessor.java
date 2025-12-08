@@ -187,20 +187,54 @@ public class AccessRecordProcessor {
             )
         """);
 
-        // 计算连续工作天数
-        // 由于Flink SQL的限制，我们使用简化版的连续工作天数计算
-        // 这里计算的是员工的总工作天数，实际生产环境中需要更复杂的逻辑
+        // 计算连续工作天数 - 完整逻辑
+        // 1. 确定每个员工的工作日期
+        // 2. 计算相邻工作日期的间隔
+        // 3. 标记连续工作的分组
+        // 4. 统计每组的连续天数
         tableEnv.executeSql("""
             INSERT INTO consecutive_work_days
             SELECT
                 employee_id,
-                CAST(COUNT(DISTINCT CAST(access_time AS DATE)) AS INT) AS consecutive_days,
-                MIN(CAST(access_time AS DATE)) AS start_date,
-                MAX(CAST(access_time AS DATE)) AS end_date
-            FROM access_records
-            WHERE direction = 'IN'
+                CAST(MAX(consecutive_group_days) AS INT) AS consecutive_days,
+                MIN(work_date) AS start_date,
+                MAX(work_date) AS end_date
+            FROM (
+                SELECT
+                    employee_id,
+                    work_date,
+                    consecutive_group,
+                    COUNT(*) OVER (PARTITION BY employee_id, consecutive_group ORDER BY work_date) AS consecutive_group_days
+                FROM (
+                    SELECT
+                        employee_id,
+                        work_date,
+                        SUM(is_new_sequence) OVER (PARTITION BY employee_id ORDER BY work_date) AS consecutive_group
+                    FROM (
+                        SELECT
+                            employee_id,
+                            work_date,
+                            LAG(work_date) OVER (PARTITION BY employee_id ORDER BY work_date) AS prev_work_date,
+                            CASE
+                                WHEN LAG(work_date) OVER (PARTITION BY employee_id ORDER BY work_date) IS NULL THEN 1
+                                WHEN TIMESTAMPDIFF(DAY, 
+                                                   CAST(LAG(work_date) OVER (PARTITION BY employee_id ORDER BY work_date) AS TIMESTAMP), 
+                                                   CAST(work_date AS TIMESTAMP)) > 1 THEN 1
+                                ELSE 0
+                            END AS is_new_sequence
+                        FROM (
+                            -- 获取每个员工的工作日期（有进入记录的日期）
+                            SELECT DISTINCT
+                                employee_id,
+                                CAST(access_time AS DATE) AS work_date
+                            FROM access_records
+                            WHERE direction = 'IN'
+                        ) distinct_work_dates
+                    ) sequence_markers
+                ) grouped_sequences
+            ) sequence_counts
             GROUP BY employee_id
-            HAVING CAST(COUNT(DISTINCT CAST(access_time AS DATE)) AS INT) > 6
+            HAVING MAX(consecutive_group_days) > 6
         """);
 
         System.out.println("Access record processing completed successfully!");
